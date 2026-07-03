@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private let menuBarStatusController = MenuBarStatusController()
+    private let statusBubbleController = StatusBubbleController()
+    private let cursorIndicatorController = CursorIndicatorController()
     let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -23,8 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         if let button = statusItem.button {
             menuBarStatusController.attach(to: button)
+            statusBubbleController.attach(to: button)
             button.action = #selector(togglePopover)
             button.target = self
+        }
+        statusBubbleController.isSuppressed = { [weak self] in
+            self?.appState.isPopoverShown ?? false
+        }
+        cursorIndicatorController.isSuppressed = { [weak self] in
+            self?.appState.isPopoverShown ?? false
         }
 
         popover = NSPopover()
@@ -40,7 +49,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self?.handleHotkeyEvent(event)
         }
         appState.onMenuBarStatusChange = { [weak self] status in
-            self?.menuBarStatusController.update(to: status)
+            guard let self else { return }
+            self.menuBarStatusController.update(to: status)
+
+            // Route to the indicator chosen in settings; hide the others.
+            switch self.appState.appSettings.recordingIndicatorStyle {
+            case .standard:
+                self.statusBubbleController.update(to: .idle)
+                self.cursorIndicatorController.update(to: .idle)
+            case .bubble:
+                self.cursorIndicatorController.update(to: .idle)
+                self.statusBubbleController.update(to: status)
+            case .cursor:
+                self.statusBubbleController.update(to: .idle)
+                self.cursorIndicatorController.update(to: status)
+            }
         }
         appState.hotkeyService.start()
 

@@ -151,6 +151,11 @@ final class AppState {
         guard isWorkflowAvailable(type) else {
             if source == .manual {
                 page = .settings
+            } else {
+                // Hotkey arrived but the workflow is not configured (e.g. no
+                // API key). Flash the menu bar icon instead of failing silently.
+                menuBarStatus = .error(type)
+                scheduleMenuBarStatusReset(after: 1.6)
             }
             return
         }

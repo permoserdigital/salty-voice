@@ -41,8 +41,10 @@ final class TranscriptionWorkflow: Workflow {
     }
 
     func start() {
-        phase = .running("Aufnahme läuft ...")
+        // Start the recorder BEFORE announcing the phase so isRecording is
+        // already true when observers read it (drives the recording animation).
         recorder.startRecording()
+        phase = .running("Aufnahme läuft ...")
 
         if let error = recorder.errorMessage {
             phase = .error(error)

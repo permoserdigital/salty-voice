@@ -146,6 +146,7 @@ struct AccessSettingsView: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11.5))
                             .focused($focusedField, equals: .openAIAPIKey)
+                            .onSubmit { save() }
 
                         Button("Einfuegen") {
                             pasteAPIKeyFromClipboard()
@@ -420,6 +421,9 @@ struct AccessSettingsView: View {
         openAIAPIKey = trimmedKey
         NSPasteboard.general.clearContents()
         saveErrorText = nil
+        // Save immediately so a valid pasted key cannot get lost before
+        // the user finds the separate save button.
+        save()
     }
 
     private var installationHeadline: String {
@@ -611,6 +615,11 @@ struct CustomizeSettingsView: View {
                     }
                 }
 
+                Text("Zusätzlich: Control gedrückt halten = Blitztext. Control doppelt tippen = Freihand-Aufnahme, die mit einem weiteren Control-Tipp beendet wird.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 // Mode picker
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Modus")
@@ -624,6 +633,23 @@ struct CustomizeSettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+            }
+
+            // MARK: Aufnahme-Anzeige
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Aufnahme-Anzeige")
+
+                Picker("", selection: $appState.appSettings.recordingIndicatorStyle) {
+                    ForEach(RecordingIndicatorStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(appState.appSettings.recordingIndicatorStyle.description)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // MARK: Blitztext+

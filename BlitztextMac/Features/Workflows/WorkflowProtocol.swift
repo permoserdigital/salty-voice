@@ -116,25 +116,52 @@ protocol Workflow: AnyObject, Observable {
 
 // MARK: - App Settings
 
+enum RecordingIndicatorStyle: String, Codable, CaseIterable, Identifiable {
+    case standard   // menu bar icon animation only
+    case bubble     // speech bubble below the menu bar icon
+    case cursor     // small indicator following the mouse pointer
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .standard: return "Standard"
+        case .bubble: return "Sprechblase"
+        case .cursor: return "Cursor"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .standard: return "Nur das Symbol in der Menüleiste animiert sich."
+        case .bubble: return "Kleine Sprechblase unter dem Menüleisten-Symbol."
+        case .cursor: return "Mini-Anzeige, die dem Mauszeiger folgt."
+        }
+    }
+}
+
 struct AppSettings: Codable {
     var hotkeyMode: HotkeyMode = .hold
     var hasSeenOnboarding: Bool = false
     var secureLocalModeEnabled: Bool = false
     var selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName
     var hasAutoSelectedFastLocalModel: Bool = false
+    var recordingIndicatorStyle: RecordingIndicatorStyle = .bubble
 
     init(
         hotkeyMode: HotkeyMode = .hold,
         hasSeenOnboarding: Bool = false,
         secureLocalModeEnabled: Bool = false,
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
-        hasAutoSelectedFastLocalModel: Bool = false
+        hasAutoSelectedFastLocalModel: Bool = false,
+        recordingIndicatorStyle: RecordingIndicatorStyle = .bubble
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
         self.secureLocalModeEnabled = secureLocalModeEnabled
         self.selectedLocalTranscriptionModelName = selectedLocalTranscriptionModelName
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
+        self.recordingIndicatorStyle = recordingIndicatorStyle
     }
 
     enum CodingKeys: String, CodingKey {
@@ -143,6 +170,7 @@ struct AppSettings: Codable {
         case secureLocalModeEnabled
         case selectedLocalTranscriptionModelName
         case hasAutoSelectedFastLocalModel
+        case recordingIndicatorStyle
     }
 
     init(from decoder: Decoder) throws {
@@ -158,6 +186,10 @@ struct AppSettings: Codable {
             Bool.self,
             forKey: .hasAutoSelectedFastLocalModel
         ) ?? false
+        recordingIndicatorStyle = try container.decodeIfPresent(
+            RecordingIndicatorStyle.self,
+            forKey: .recordingIndicatorStyle
+        ) ?? .bubble
     }
 }
 

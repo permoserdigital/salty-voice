@@ -30,8 +30,9 @@ final class TextImprovementWorkflow: Workflow {
     // MARK: - Workflow Protocol
 
     func start() {
-        phase = .running("Aufnahme läuft ...")
+        // Recorder first so isRecording is true when the phase change fires.
         recorder.startRecording()
+        phase = .running("Aufnahme läuft ...")
 
         if let error = recorder.errorMessage {
             phase = .error(error)

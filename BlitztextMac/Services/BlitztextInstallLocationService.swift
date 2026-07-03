@@ -39,11 +39,11 @@ enum BlitztextInstallLocationService {
             case .destinationUnavailable:
                 return "Der Zielordner /Applications ist nicht verfügbar."
             case .destinationExists:
-                return "Am Zielort liegt bereits eine Blitztext-Installation."
+                return "Am Zielort liegt bereits eine SALTY Voice-Installation."
             case .destinationNotWritable:
                 return "Der Zielordner /Applications ist auf diesem Mac nicht beschreibbar."
             case .copyFailed:
-                return "Blitztext konnte nicht nach /Applications kopiert werden."
+                return "SALTY Voice konnte nicht nach /Applications kopiert werden."
             }
         }
     }

@@ -29,7 +29,7 @@ struct MenuBarView: View {
                 // Top bar
                 HStack {
                     HStack(spacing: 6) {
-                        Text("Blitztext")
+                        Text("SALTY Voice")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
 
@@ -223,7 +223,7 @@ struct MenuBarView: View {
             return "\(appState.selectedLocalModelDisplayName) ist noch nicht installiert."
         }
 
-        return "Blitztext nutzt gerade die OpenAI-Transkription."
+        return "SALTY Voice nutzt gerade die OpenAI-Transkription."
     }
 
     private var accessibilityHintBanner: some View {
@@ -314,7 +314,7 @@ struct MenuBarView: View {
     private var onboardingPage: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Willkommen bei Blitztext")
+                Text("Willkommen bei SALTY Voice")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
 
@@ -365,7 +365,7 @@ struct MenuBarView: View {
 
                     onboardingStep(number: "1", title: "OpenAI Key speichern", detail: "Öffne die Einstellungen und trage deinen eigenen OpenAI API Key ein.")
                     onboardingStep(number: "2", title: "Berechtigungen erlauben", detail: "Mikrofon und Bedienungshilfen für das Einfügen freigeben.")
-                    onboardingStep(number: "3", title: "Workflow wählen", detail: "Blitztext oder einen der Verbesserer-Workflows direkt aus der Menüleiste starten.")
+                    onboardingStep(number: "3", title: "Workflow wählen", detail: "SALTY Voice oder einen der Verbesserer-Workflows direkt aus der Menüleiste starten.")
                 }
 
                 HStack(spacing: 8) {
@@ -480,7 +480,7 @@ struct MenuBarView: View {
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Lege Blitztext zuerst nach /Applications.")
+                Text("Lege SALTY Voice zuerst nach /Applications.")
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(.primary)
 

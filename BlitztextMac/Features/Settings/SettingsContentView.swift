@@ -93,7 +93,7 @@ struct AccessSettingsView: View {
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(.primary)
 
-                        Text("Öffne Bedienungshilfen und aktiviere Blitztext. Falls Blitztext schon aktiv ist, einmal aus- und wieder einschalten.")
+                        Text("Öffne Bedienungshilfen und aktiviere SALTY Voice. Falls SALTY Voice schon aktiv ist, einmal aus- und wieder einschalten.")
                             .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -179,7 +179,7 @@ struct AccessSettingsView: View {
                     .textSelection(.enabled)
 
                 if !BlitztextInstallLocationService.otherInstalledBundleURLs.isEmpty {
-                    Text("Weitere Blitztext-Kopien auf diesem Mac können doppelte Login-Items auslösen.")
+                    Text("Weitere SALTY Voice-Kopien auf diesem Mac können doppelte Login-Items auslösen.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -223,7 +223,7 @@ struct AccessSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !currentInstallLocation.isCanonicalInstall {
-                    Text("Hotkeys und Login-Start laufen am stabilsten, wenn Blitztext aus /Applications gestartet wird.")
+                    Text("Hotkeys und Login-Start laufen am stabilsten, wenn SALTY Voice aus /Applications gestartet wird.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -238,7 +238,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: "Beim Anmelden")
 
-                Toggle("Blitztext automatisch starten", isOn: Binding(
+                Toggle("SALTY Voice automatisch starten", isOn: Binding(
                     get: { launchAtLoginService.isEnabled },
                     set: { launchAtLoginService.setEnabled($0) }
                 ))
@@ -264,7 +264,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 SectionLabel(text: "Hinweis")
 
-                Text("Fuer direktes Einfuegen: Blitztext einmal nach /Applications legen und danach Mikrofon sowie Bedienungshilfen erlauben.")
+                Text("Fuer direktes Einfuegen: SALTY Voice einmal nach /Applications legen und danach Mikrofon sowie Bedienungshilfen erlauben.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -283,7 +283,7 @@ struct AccessSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: "Sauber Entfernen")
 
-                Text("Vor dem Löschen Blitztext erst auf diesem Mac bereinigen. So verschwinden Anmeldestart und lokale Daten sauber aus dem Weg.")
+                Text("Vor dem Löschen SALTY Voice erst auf diesem Mac bereinigen. So verschwinden Anmeldestart und lokale Daten sauber aus dem Weg.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -292,7 +292,7 @@ struct AccessSettingsView: View {
                     Toggle("Zugangsdaten und Einstellungen dieses Macs löschen", isOn: $deleteLocalDataOnCleanup)
                         .toggleStyle(.switch)
 
-                    Text("Danach Blitztext beenden und die App aus /Applications löschen. Bereits verwaiste alte Login-Items können in den Systemeinstellungen einmalig manuell entfernt werden.")
+                    Text("Danach SALTY Voice beenden und die App aus /Applications löschen. Bereits verwaiste alte Login-Items können in den Systemeinstellungen einmalig manuell entfernt werden.")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -429,11 +429,11 @@ struct AccessSettingsView: View {
     private var installationHeadline: String {
         switch currentInstallLocation {
         case .applications:
-            return "Blitztext liegt am richtigen Ort."
+            return "SALTY Voice liegt am richtigen Ort."
         case .userApplications:
-            return "Blitztext liegt noch in ~/Applications."
+            return "SALTY Voice liegt noch in ~/Applications."
         case .outsideApplications:
-            return "Blitztext liegt noch nicht in /Applications."
+            return "SALTY Voice liegt noch nicht in /Applications."
         case .unknown:
             return "Der Installationsort konnte nicht sicher erkannt werden."
         }
@@ -447,11 +447,11 @@ struct AccessSettingsView: View {
             }
             return "Diese Kopie ist korrekt. Zusätzliche Kopien solltest du später entfernen."
         case .userApplications:
-            return "Fuer stabile Hotkeys und Login-Items sollte Blitztext nur aus /Applications laufen."
+            return "Fuer stabile Hotkeys und Login-Items sollte SALTY Voice nur aus /Applications laufen."
         case .outsideApplications:
-            return "Verschiebe Blitztext einmal nach /Applications, damit Anmeldestart und Hotkeys sauber bleiben."
+            return "Verschiebe SALTY Voice einmal nach /Applications, damit Anmeldestart und Hotkeys sauber bleiben."
         case .unknown:
-            return "Öffne Blitztext möglichst direkt aus /Applications."
+            return "Öffne SALTY Voice möglichst direkt aus /Applications."
         }
     }
 
@@ -489,8 +489,8 @@ struct AccessSettingsView: View {
 
         if report.failedItems.isEmpty {
             cleanupStatusText = deleteLocalDataOnCleanup
-                ? "Anmeldestart und lokale Daten wurden bereinigt. Jetzt Blitztext beenden und aus /Applications löschen."
-                : "Anmeldestart wurde deaktiviert. Jetzt Blitztext beenden und aus /Applications löschen."
+                ? "Anmeldestart und lokale Daten wurden bereinigt. Jetzt SALTY Voice beenden und aus /Applications löschen."
+                : "Anmeldestart wurde deaktiviert. Jetzt SALTY Voice beenden und aus /Applications löschen."
             showCleanupOptions = false
 
             let urlsToReveal = report.knownInstallBundleURLs.isEmpty
@@ -615,7 +615,7 @@ struct CustomizeSettingsView: View {
                     }
                 }
 
-                Text("Zusätzlich: Control gedrückt halten = Blitztext. Control doppelt tippen = Freihand-Aufnahme, die mit einem weiteren Control-Tipp beendet wird.")
+                Text("Zusätzlich: Control gedrückt halten = SALTY Voice. Control doppelt tippen = Freihand-Aufnahme, die mit einem weiteren Control-Tipp beendet wird.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -652,9 +652,9 @@ struct CustomizeSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // MARK: Blitztext+
+            // MARK: SALTY Voice+
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext+")
+                SectionLabel(text: "SALTY Voice+")
 
                 // Tone
                 VStack(alignment: .leading, spacing: 8) {
@@ -707,9 +707,9 @@ struct CustomizeSettingsView: View {
                 }
             }
 
-            // MARK: Blitztext $%&!
+            // MARK: SALTY Voice $%&!
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext $%&!")
+                SectionLabel(text: "SALTY Voice $%&!")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Eigene Anweisung")
@@ -736,9 +736,9 @@ struct CustomizeSettingsView: View {
                 }
             }
 
-            // MARK: Blitztext :)
+            // MARK: SALTY Voice :)
             VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Blitztext :)")
+                SectionLabel(text: "SALTY Voice :)")
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Emoji-Dichte")

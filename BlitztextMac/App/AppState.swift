@@ -79,6 +79,62 @@ final class AppState {
         refreshAccessibilityPermission()
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
+        refreshTeamWords()
+    }
+
+    // MARK: - Team Vocabulary
+
+    var teamSyncStatusText: String?
+
+    var isTeamConfigured: Bool {
+        !appSettings.teamServerURL.trimmingCharacters(in: .whitespaces).isEmpty
+            && !appSettings.teamCode.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var teamWords: [String] { appSettings.cachedTeamWords }
+
+    /// Personal terms plus synced team terms, deduplicated (case-insensitive).
+    var combinedCustomTerms: [String] {
+        var seen = Set<String>()
+        return (textImprovementSettings.customTerms + appSettings.cachedTeamWords)
+            .filter { seen.insert($0.lowercased()).inserted }
+    }
+
+    func refreshTeamWords() {
+        guard isTeamConfigured else { return }
+        let serverURL = appSettings.teamServerURL
+        let code = appSettings.teamCode
+        teamSyncStatusText = "Synchronisiere ..."
+
+        Task { @MainActor [weak self] in
+            do {
+                let words = try await TeamVocabularyService.fetchWords(serverURL: serverURL, teamCode: code)
+                guard let self else { return }
+                self.appSettings.cachedTeamWords = words
+                self.teamSyncStatusText = "\(words.count) Team-Wörter synchronisiert."
+            } catch {
+                self?.teamSyncStatusText = error.localizedDescription
+            }
+        }
+    }
+
+    func addTeamWord(_ word: String) {
+        let trimmed = word.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, isTeamConfigured else { return }
+        let serverURL = appSettings.teamServerURL
+        let code = appSettings.teamCode
+        teamSyncStatusText = "Sende \"\(trimmed)\" ..."
+
+        Task { @MainActor [weak self] in
+            do {
+                let words = try await TeamVocabularyService.addWord(serverURL: serverURL, teamCode: code, word: trimmed)
+                guard let self else { return }
+                self.appSettings.cachedTeamWords = words
+                self.teamSyncStatusText = "\"\(trimmed)\" für das Team gespeichert."
+            } catch {
+                self?.teamSyncStatusText = error.localizedDescription
+            }
+        }
     }
 
     // MARK: - Custom Display Names
@@ -169,7 +225,7 @@ final class AppState {
         switch type {
         case .transcription:
             let workflow = TranscriptionWorkflow(
-                customTerms: textImprovementSettings.customTerms,
+                customTerms: combinedCustomTerms,
                 language: transcriptionSettings.language,
                 backend: appSettings.secureLocalModeEnabled ? .local : .remote,
                 localModelName: selectedLocalModelName
@@ -181,7 +237,7 @@ final class AppState {
         case .localTranscription:
             let workflow = TranscriptionWorkflow(
                 type: .localTranscription,
-                customTerms: textImprovementSettings.customTerms,
+                customTerms: combinedCustomTerms,
                 language: transcriptionSettings.language,
                 backend: .local,
                 localModelName: selectedLocalModelName
@@ -191,8 +247,11 @@ final class AppState {
             workflow.start()
 
         case .textImprover:
+            // Inject team words so the improver also knows them.
+            var settingsWithTeamTerms = textImprovementSettings
+            settingsWithTeamTerms.customTerms = combinedCustomTerms
             let workflow = TextImprovementWorkflow(
-                settings: textImprovementSettings,
+                settings: settingsWithTeamTerms,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)
@@ -202,7 +261,7 @@ final class AppState {
         case .dampfAblassen:
             let workflow = DampfAblassenWorkflow(
                 settings: dampfAblassenSettings,
-                customTerms: textImprovementSettings.customTerms,
+                customTerms: combinedCustomTerms,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)
@@ -212,7 +271,7 @@ final class AppState {
         case .emojiText:
             let workflow = EmojiTextWorkflow(
                 settings: emojiTextSettings,
-                customTerms: textImprovementSettings.customTerms,
+                customTerms: combinedCustomTerms,
                 language: transcriptionSettings.language
             )
             configureWorkflowHandlers(workflow)

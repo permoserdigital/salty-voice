@@ -147,6 +147,9 @@ struct AppSettings: Codable {
     var selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName
     var hasAutoSelectedFastLocalModel: Bool = false
     var recordingIndicatorStyle: RecordingIndicatorStyle = .bubble
+    var teamServerURL: String = ""
+    var teamCode: String = ""
+    var cachedTeamWords: [String] = []
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -154,7 +157,10 @@ struct AppSettings: Codable {
         secureLocalModeEnabled: Bool = false,
         selectedLocalTranscriptionModelName: String = LocalTranscriptionService.recommendedFastModelName,
         hasAutoSelectedFastLocalModel: Bool = false,
-        recordingIndicatorStyle: RecordingIndicatorStyle = .bubble
+        recordingIndicatorStyle: RecordingIndicatorStyle = .bubble,
+        teamServerURL: String = "",
+        teamCode: String = "",
+        cachedTeamWords: [String] = []
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
@@ -162,6 +168,9 @@ struct AppSettings: Codable {
         self.selectedLocalTranscriptionModelName = selectedLocalTranscriptionModelName
         self.hasAutoSelectedFastLocalModel = hasAutoSelectedFastLocalModel
         self.recordingIndicatorStyle = recordingIndicatorStyle
+        self.teamServerURL = teamServerURL
+        self.teamCode = teamCode
+        self.cachedTeamWords = cachedTeamWords
     }
 
     enum CodingKeys: String, CodingKey {
@@ -171,6 +180,9 @@ struct AppSettings: Codable {
         case selectedLocalTranscriptionModelName
         case hasAutoSelectedFastLocalModel
         case recordingIndicatorStyle
+        case teamServerURL
+        case teamCode
+        case cachedTeamWords
     }
 
     init(from decoder: Decoder) throws {
@@ -190,6 +202,9 @@ struct AppSettings: Codable {
             RecordingIndicatorStyle.self,
             forKey: .recordingIndicatorStyle
         ) ?? .bubble
+        teamServerURL = try container.decodeIfPresent(String.self, forKey: .teamServerURL) ?? ""
+        teamCode = try container.decodeIfPresent(String.self, forKey: .teamCode) ?? ""
+        cachedTeamWords = try container.decodeIfPresent([String].self, forKey: .cachedTeamWords) ?? []
     }
 }
 

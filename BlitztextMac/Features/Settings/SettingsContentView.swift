@@ -517,6 +517,7 @@ struct AccessSettingsView: View {
 struct CustomizeSettingsView: View {
     @Bindable var appState: AppState
     @State private var newTerm = ""
+    @State private var newTeamWord = ""
 
     private var installedLocalModels: [LocalTranscriptionModel] {
         LocalTranscriptionService.installedModels()
@@ -806,8 +807,84 @@ struct CustomizeSettingsView: View {
                 }
             }
 
+            // MARK: Team-Wörter
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Team-Wörter")
+
+                Text("Gemeinsame Begriffe für dein Team, synchronisiert über den Team-Server. Neue Wörter erscheinen automatisch bei allen Teammitgliedern.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TextField("Team-Server-URL (z. B. plattform.saltybrands.de)", text: $appState.appSettings.teamServerURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+
+                HStack(spacing: 6) {
+                    TextField("Team-Code", text: $appState.appSettings.teamCode)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+
+                    Button("Synchronisieren") {
+                        appState.refreshTeamWords()
+                    }
+                    .buttonStyle(SubtleButtonStyle())
+                    .disabled(!appState.isTeamConfigured)
+                }
+
+                if let statusText = appState.teamSyncStatusText {
+                    Text(statusText)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !appState.teamWords.isEmpty {
+                    FlowLayout(spacing: 5) {
+                        ForEach(appState.teamWords, id: \.self) { word in
+                            Text(word)
+                                .font(.system(size: 10.5))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color(nsColor: .controlBackgroundColor))
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Color.primary.opacity(0.04), lineWidth: 0.5)
+                                )
+                        }
+                    }
+                }
+
+                if appState.isTeamConfigured {
+                    HStack(spacing: 6) {
+                        TextField("Neues Team-Wort", text: $newTeamWord)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                            .onSubmit { submitTeamWord() }
+
+                        Button { submitTeamWord() } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.blue.opacity(0.7))
+                        }
+                        .buttonStyle(SubtleButtonStyle())
+                        .disabled(newTeamWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
+
         }
         .padding(16)
+    }
+
+    private func submitTeamWord() {
+        let trimmed = newTeamWord.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        appState.addTeamWord(trimmed)
+        newTeamWord = ""
     }
 
     private func addTerm() {

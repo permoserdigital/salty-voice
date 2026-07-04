@@ -97,12 +97,30 @@ enum TranscriptionQualityService {
     /// from subtitle credits in the model's training data (e.g. Amara/ZDF)
     /// and are not something a user would dictate.
     private static let knownHallucinationMarkers: [String] = [
+        // German subtitle credits
         "amara.org",
         "untertitelung des zdf",
         "untertitel im auftrag des zdf",
         "untertitel von stephanie geiges",
         "subtitles by the amara",
         "copyright wdr",
+        // English video outros
+        "thank you for watching",
+        "thanks for watching",
+        "don't forget to subscribe",
+        "please subscribe",
+        // Korean news/video outros
+        "mbc 뉴스",
+        "kbs 뉴스",
+        "sbs 뉴스",
+        "뉴스 이덕영",
+        "구독과 좋아요",
+        "시청해 주셔서 감사합니다",
+        // Japanese outros
+        "ご視聴ありがとうございました",
+        "チャンネル登録",
+        // Misc known silence artifacts
+        "www.mooji.org",
     ]
 
     static func isKnownHallucination(_ text: String) -> Bool {
@@ -120,9 +138,18 @@ enum TranscriptionQualityService {
         }
 
         let words = cleaned.split { $0.isWhitespace || $0.isNewline }
-        let letters = cleaned.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        let letterScalars = cleaned.unicodeScalars.filter { CharacterSet.letters.contains($0) }
+        let letters = letterScalars.count
 
         if letters == 0 {
+            return true
+        }
+
+        // Dictation happens in a Latin-script language. A result that is
+        // mostly non-Latin script (Korean, Japanese, ...) is a classic
+        // Whisper silence hallucination.
+        let latinLetters = letterScalars.filter { $0.value < 0x250 }.count
+        if letters >= 4, Double(latinLetters) / Double(letters) < 0.5 {
             return true
         }
 

@@ -113,10 +113,6 @@ enum LLMService {
         model: RewriteModel,
         temperature: Double
     ) async throws -> String {
-        guard let apiKey = KeychainService.load(key: .openAIAPIKey) else {
-            throw LLMError.notConfigured
-        }
-
         let payload = OpenAIChatRequest(
             model: model.rawValue,
             messages: [
@@ -125,6 +121,15 @@ enum LLMService {
             ],
             temperature: temperature
         )
+
+        // Team proxy takes precedence: the team server holds the OpenAI key.
+        if let team = TeamVocabularyService.teamProxyConfiguration() {
+            return try await completeViaTeamServer(team: team, payload: payload)
+        }
+
+        guard let apiKey = KeychainService.load(key: .openAIAPIKey) else {
+            throw LLMError.notConfigured
+        }
 
         var request = URLRequest(url: chatCompletionsURL)
         request.httpMethod = "POST"
@@ -154,6 +159,62 @@ enum LLMService {
 
     private static func openAIErrorMessage(from data: Data) -> String? {
         (try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data))?.error?.message
+    }
+
+    // MARK: - Team proxy path
+
+    private struct TeamChatRequest: Encodable {
+        let code: String
+        let model: String
+        let messages: [OpenAIChatRequest.Message]
+        let temperature: Double
+    }
+
+    private struct TeamChatResponse: Decodable {
+        let text: String?
+        let error: String?
+    }
+
+    private static func completeViaTeamServer(
+        team: (serverURL: String, code: String),
+        payload: OpenAIChatRequest
+    ) async throws -> String {
+        let endpoint = try TeamVocabularyService.apiURL(
+            serverURL: team.serverURL,
+            path: "/api/voice/chat"
+        )
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 45
+        request.httpBody = try JSONEncoder().encode(TeamChatRequest(
+            code: team.code,
+            model: payload.model,
+            messages: payload.messages,
+            temperature: payload.temperature
+        ))
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.networkError("Keine gültige Antwort vom Team-Server")
+        }
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw LLMError.apiError("Team-Code wurde vom Server abgelehnt.")
+            }
+            let serverError = (try? JSONDecoder().decode(TeamChatResponse.self, from: data))?.error
+            throw LLMError.apiError(serverError ?? "Team-Server Status \(httpResponse.statusCode)")
+        }
+
+        guard let content = (try? JSONDecoder().decode(TeamChatResponse.self, from: data))?.text?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw LLMError.noContent
+        }
+
+        return content
     }
 
     private static func buildEmojiSystemPrompt(density: EmojiTextSettings.EmojiDensity) -> String {

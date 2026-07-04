@@ -159,6 +159,18 @@ struct AccessSettingsView: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if appState.isTeamConfigured {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.green.opacity(0.8))
+                        Text("Team-Server aktiv: Anfragen laufen über deinen Team-Server. Ein eigener API-Key ist nicht nötig.")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {

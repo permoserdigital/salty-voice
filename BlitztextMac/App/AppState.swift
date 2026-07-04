@@ -60,7 +60,14 @@ final class AppState {
 
     // Computed
     var isConfigured: Bool {
-        KeychainService.isConfigured || !LocalTranscriptionService.installedModels().isEmpty
+        KeychainService.isConfigured
+            || isTeamConfigured
+            || !LocalTranscriptionService.installedModels().isEmpty
+    }
+
+    /// Online features work with either a personal API key or a team server.
+    var hasOnlineBackend: Bool {
+        KeychainService.isConfigured || isTeamConfigured
     }
     var shouldShowOnboarding: Bool {
         !isConfigured && !appSettings.hasSeenOnboarding
@@ -289,9 +296,9 @@ final class AppState {
         case .transcription:
             return appSettings.secureLocalModeEnabled
                 ? selectedLocalModelIsInstalled
-                : KeychainService.isConfigured
+                : hasOnlineBackend
         case .textImprover, .dampfAblassen, .emojiText:
-            return !appSettings.secureLocalModeEnabled && KeychainService.isConfigured
+            return !appSettings.secureLocalModeEnabled && hasOnlineBackend
         }
     }
 

@@ -30,17 +30,21 @@ enum TeamVocabularyService {
         }
     }
 
-    private static func endpoint(serverURL: String) throws -> URL {
+    static func apiURL(serverURL: String, path: String) throws -> URL {
         var base = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") { base.removeLast() }
         guard !base.isEmpty else { throw TeamVocabularyError.invalidURL }
         if !base.lowercased().hasPrefix("http") {
             base = "https://" + base
         }
-        guard let url = URL(string: base + "/api/voice/team-words") else {
+        guard let url = URL(string: base + path) else {
             throw TeamVocabularyError.invalidURL
         }
         return url
+    }
+
+    private static func endpoint(serverURL: String) throws -> URL {
+        try apiURL(serverURL: serverURL, path: "/api/voice/team-words")
     }
 
     private static func validate(_ response: URLResponse) throws {
@@ -69,6 +73,30 @@ enum TeamVocabularyService {
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response)
         return try JSONDecoder().decode(WordsResponse.self, from: data).words
+    }
+
+    // MARK: - Team proxy configuration
+
+    /// Reads the team server configuration straight from the persisted
+    /// settings file so static services (transcription, LLM) can use the
+    /// team proxy without holding a reference to AppState.
+    static func teamProxyConfiguration() -> (serverURL: String, code: String)? {
+        struct SettingsPeek: Decodable {
+            struct App: Decodable {
+                var teamServerURL: String?
+                var teamCode: String?
+            }
+            var app: App?
+        }
+
+        guard let data = try? Data(contentsOf: AppSupportPaths.settingsURL),
+              let peek = try? JSONDecoder().decode(SettingsPeek.self, from: data),
+              let serverURL = peek.app?.teamServerURL?.trimmingCharacters(in: .whitespaces),
+              let code = peek.app?.teamCode?.trimmingCharacters(in: .whitespaces),
+              !serverURL.isEmpty, !code.isEmpty else {
+            return nil
+        }
+        return (serverURL, code)
     }
 
     static func addWord(serverURL: String, teamCode: String, word: String) async throws -> [String] {

@@ -46,6 +46,17 @@ enum TranscriptionService {
         customTerms: [String] = [],
         language: String? = nil
     ) async throws -> String {
+        // Team proxy takes precedence: the team server holds the OpenAI key,
+        // so members never need their own.
+        if let team = TeamVocabularyService.teamProxyConfiguration() {
+            return try await transcribeViaTeamServer(
+                team: team,
+                audioURL: audioURL,
+                customTerms: customTerms,
+                language: language
+            )
+        }
+
         guard let apiKey = KeychainService.load(key: .openAIAPIKey) else {
             throw TranscriptionError.notConfigured
         }
@@ -123,6 +134,90 @@ enum TranscriptionService {
 
     private static func openAIErrorMessage(from data: Data) -> String? {
         (try? JSONDecoder().decode(TranscriptionOpenAIErrorResponse.self, from: data))?.error?.message
+    }
+
+    // MARK: - Team proxy path
+
+    private struct TeamTranscribeResponse: Decodable {
+        let text: String?
+        let error: String?
+    }
+
+    private static func transcribeViaTeamServer(
+        team: (serverURL: String, code: String),
+        audioURL: URL,
+        customTerms: [String],
+        language: String?
+    ) async throws -> String {
+        let endpoint = try TeamVocabularyService.apiURL(
+            serverURL: team.serverURL,
+            path: "/api/voice/transcribe"
+        )
+
+        return try await Task.detached(priority: .userInitiated) {
+            defer {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+
+            let boundary = UUID().uuidString
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 60
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+
+            let audioData = try Data(contentsOf: audioURL, options: [.mappedIfSafe])
+
+            var body = Data()
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"code\"\r\n\r\n")
+            body.append(team.code)
+            body.append("\r\n")
+
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n")
+            body.append("Content-Type: audio/m4a\r\n\r\n")
+            body.append(audioData)
+            body.append("\r\n")
+
+            // Optional hints; the server may forward them to Whisper.
+            if !customTerms.isEmpty {
+                body.append("--\(boundary)\r\n")
+                body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+                body.append("Eigennamen und Begriffe: \(customTerms.joined(separator: ", "))")
+                body.append("\r\n")
+            }
+            if let language, !language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                body.append("--\(boundary)\r\n")
+                body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
+                body.append(language.trimmingCharacters(in: .whitespacesAndNewlines))
+                body.append("\r\n")
+            }
+
+            body.append("--\(boundary)--\r\n")
+            request.httpBody = body
+
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw TranscriptionError.networkError("Ungueltige Antwort vom Team-Server")
+            }
+            guard httpResponse.statusCode == 200 else {
+                if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                    throw TranscriptionError.apiError("Team-Code wurde vom Server abgelehnt.")
+                }
+                let serverError = (try? JSONDecoder().decode(TeamTranscribeResponse.self, from: data))?.error
+                throw TranscriptionError.apiError(serverError ?? "Team-Server Status \(httpResponse.statusCode)")
+            }
+
+            guard let text = (try? JSONDecoder().decode(TeamTranscribeResponse.self, from: data))?.text?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else {
+                throw TranscriptionError.apiError("Transkription über Team-Server fehlgeschlagen")
+            }
+
+            return text
+        }.value
     }
 }
 

@@ -127,8 +127,10 @@ final class TranscriptionWorkflow: Workflow {
                 transcriptionLogger.info(
                     "Transcription ready in \(elapsedMilliseconds(since: stopTime, until: responseReceivedAt)) ms (request \(elapsedMilliseconds(since: requestStart, until: responseReceivedAt)) ms)"
                 )
-                phase = .done(cleaned)
-                onOutput?(cleaned)
+                // Enforce exact spelling of personal + team terms locally.
+                let corrected = TranscriptionQualityService.enforceCanonicalTerms(cleaned, terms: customTerms)
+                phase = .done(corrected)
+                onOutput?(corrected)
             } catch {
                 transcriptionLogger.error(
                     "Transcription failed after \(elapsedMilliseconds(since: stopTime)) ms: \(error.localizedDescription, privacy: .private)"

@@ -8,6 +8,9 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     var errorMessage: String?
     var audioLevel: Float = 0
     var lastRecordingDuration: TimeInterval = 0
+    /// Loudest normalized peak observed during the recording (0...1).
+    /// Stays near zero when the microphone only captured silence.
+    var peakObservedLevel: Float = 0
 
     private var audioRecorder: AVAudioRecorder?
     private var levelTimer: Timer?
@@ -21,6 +24,7 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     func startRecording() {
         errorMessage = nil
         lastRecordingDuration = 0
+        peakObservedLevel = 0
         recordingURL = nil
         if let currentFileURL {
             try? FileManager.default.removeItem(at: currentFileURL)
@@ -78,6 +82,10 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
             let power = self.audioRecorder?.averagePower(forChannel: 0) ?? -160
             let normalized = max(0, min(1, (power + 50) / 50))
             self.audioLevel = normalized
+
+            let peak = self.audioRecorder?.peakPower(forChannel: 0) ?? -160
+            let normalizedPeak = max(0, min(1, (peak + 50) / 50))
+            self.peakObservedLevel = max(self.peakObservedLevel, normalizedPeak)
         }
     }
 

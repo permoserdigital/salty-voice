@@ -87,6 +87,17 @@ final class AppState {
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
         refreshTeamWords()
+        checkForUpdate()
+    }
+
+    // MARK: - Update Check
+
+    var availableUpdateVersion: String?
+
+    private func checkForUpdate() {
+        Task { @MainActor [weak self] in
+            self?.availableUpdateVersion = await UpdateCheckService.checkForUpdate()
+        }
     }
 
     // MARK: - Team Vocabulary
@@ -121,6 +132,31 @@ final class AppState {
                 self.teamSyncStatusText = "\(words.count) Team-Wörter synchronisiert."
             } catch {
                 self?.teamSyncStatusText = error.localizedDescription
+            }
+        }
+    }
+
+    var feedbackStatusText: String?
+
+    func sendFeedback(_ message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, isTeamConfigured else { return }
+        let serverURL = appSettings.teamServerURL
+        let code = appSettings.teamCode
+        feedbackStatusText = "Sende Feedback ..."
+
+        Task { @MainActor [weak self] in
+            do {
+                try await TeamVocabularyService.sendFeedback(
+                    serverURL: serverURL,
+                    teamCode: code,
+                    message: trimmed,
+                    appVersion: UpdateCheckService.currentVersion,
+                    sender: NSFullUserName()
+                )
+                self?.feedbackStatusText = "Danke! Feedback wurde gesendet. 🙏"
+            } catch {
+                self?.feedbackStatusText = "Senden fehlgeschlagen: \(error.localizedDescription)"
             }
         }
     }

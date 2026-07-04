@@ -75,6 +75,7 @@ struct AccessSettingsView: View {
     @State private var deleteLocalDataOnCleanup = true
     @State private var cleanupStatusText: String?
     @State private var cleanupErrorText: String?
+    @State private var feedbackText = ""
     @FocusState private var focusedField: FieldFocus?
 
     var body: some View {
@@ -290,6 +291,50 @@ struct AccessSettingsView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(Color.primary.opacity(0.05), lineWidth: 0.5)
                     )
+            }
+
+            if appState.isTeamConfigured {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel(text: "Feedback")
+
+                    Text("Wünsche, Bugs, Ideen? Geht direkt an das SALTY-Voice-Team.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    TextEditor(text: $feedbackText)
+                        .font(.system(size: 11))
+                        .frame(height: 56)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+                        .overlay(alignment: .topLeading) {
+                            if feedbackText.isEmpty {
+                                Text("z. B. \"Mir fehlt Funktion XY ...\"")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.quaternary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 12)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                    HStack {
+                        if let feedbackStatus = appState.feedbackStatusText {
+                            Text(feedbackStatus)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Feedback senden") {
+                            appState.sendFeedback(feedbackText)
+                            feedbackText = ""
+                        }
+                        .buttonStyle(SubtleButtonStyle())
+                        .disabled(feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {

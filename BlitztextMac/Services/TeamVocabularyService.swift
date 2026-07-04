@@ -75,6 +75,33 @@ enum TeamVocabularyService {
         return try JSONDecoder().decode(WordsResponse.self, from: data).words
     }
 
+    // MARK: - Feedback
+
+    /// Sends user feedback to the team server:
+    ///   POST {base}/api/voice/feedback
+    ///   body: {"code", "message", "appVersion", "sender"}
+    static func sendFeedback(
+        serverURL: String,
+        teamCode: String,
+        message: String,
+        appVersion: String,
+        sender: String
+    ) async throws {
+        var request = URLRequest(url: try apiURL(serverURL: serverURL, path: "/api/voice/feedback"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+        request.httpBody = try JSONEncoder().encode([
+            "code": teamCode,
+            "message": message,
+            "appVersion": appVersion,
+            "sender": sender,
+        ])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        try validate(response)
+    }
+
     // MARK: - Team proxy configuration
 
     /// Reads the team server configuration straight from the persisted

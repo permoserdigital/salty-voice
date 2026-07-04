@@ -3,8 +3,12 @@ import Foundation
 enum TranscriptionQualityService {
     static let minimumRecordingDuration: TimeInterval = 0.3
 
-    static func shouldRejectRecording(duration: TimeInterval) -> Bool {
-        duration < minimumRecordingDuration
+    /// Peaks below this normalized level (0...1) mean the recording only
+    /// captured silence -- transcribing it would just invite hallucinations.
+    static let minimumPeakLevel: Float = 0.18
+
+    static func shouldRejectRecording(duration: TimeInterval, peakLevel: Float) -> Bool {
+        duration < minimumRecordingDuration || peakLevel < minimumPeakLevel
     }
 
     static func cleanedTranscript(_ text: String) -> String {
@@ -121,12 +125,35 @@ enum TranscriptionQualityService {
         "チャンネル登録",
         // Misc known silence artifacts
         "www.mooji.org",
+        "so much for watching",
+        "for watching",
+        "legendas pela comunidade",
+        "sous-titres réalisés",
+    ]
+
+    /// Whole-output phrases Whisper produces for silence. Only rejected when
+    /// they are the ENTIRE result, so real dictation is never affected.
+    private static let exactSilenceOutputs: Set<String> = [
+        "you", "you you you",
+        "thank you", "thanks", "thank you so much",
+        "bye", "goodbye", "the end",
+        "é isso aí", "obrigado", "gracias",
     ]
 
     static func isKnownHallucination(_ text: String) -> Bool {
         let lowercased = cleanedTranscript(text).lowercased()
         guard !lowercased.isEmpty else { return false }
-        return knownHallucinationMarkers.contains { lowercased.contains($0) }
+
+        if knownHallucinationMarkers.contains(where: { lowercased.contains($0) }) {
+            return true
+        }
+
+        // Normalize punctuation away and compare against whole-output list.
+        let normalized = lowercased
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return exactSilenceOutputs.contains(normalized)
     }
 
     static func isLikelyArtifact(_ text: String, recordingDuration: TimeInterval) -> Bool {

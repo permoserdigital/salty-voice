@@ -54,7 +54,7 @@ final class TranscriptionWorkflow: Workflow {
     func stop() {
         if recorder.isRecording {
             recorder.stopRecording()
-            guard !TranscriptionQualityService.shouldRejectRecording(duration: recorder.lastRecordingDuration) else {
+            guard !TranscriptionQualityService.shouldRejectRecording(duration: recorder.lastRecordingDuration, peakLevel: recorder.peakObservedLevel) else {
                 recorder.discardRecording()
                 phase = .error("Keine Aufnahme erkannt.")
                 return

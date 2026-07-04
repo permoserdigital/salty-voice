@@ -873,7 +873,7 @@ struct CustomizeSettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                TextField("Team-Server-URL (z. B. plattform.saltybrands.de)", text: $appState.appSettings.teamServerURL)
+                TextField("Team-Server-URL (z. B. team.deinefirma.de)", text: $appState.appSettings.teamServerURL)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
 

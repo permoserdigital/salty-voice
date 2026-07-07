@@ -708,6 +708,14 @@ struct CustomizeSettingsView: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Ton-Feedback", isOn: $appState.appSettings.soundFeedbackEnabled)
+                    .toggleStyle(.switch)
+
+                Text("Dezente Töne bei Aufnahme-Start, -Stopp, Erfolg und Abbruch.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // MARK: SALTY Voice+
@@ -933,9 +941,71 @@ struct CustomizeSettingsView: View {
                 }
             }
 
+            // MARK: Verlauf
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Verlauf")
+
+                Text("Deine letzten Transkriptionen — nur lokal auf diesem Mac gespeichert.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if appState.transcriptionHistory.isEmpty {
+                    Text("Noch keine Transkriptionen.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    VStack(spacing: 6) {
+                        ForEach(appState.transcriptionHistory.prefix(15)) { entry in
+                            HStack(alignment: .top, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(entry.text)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(3)
+
+                                    Text(Self.historyDateFormatter.string(from: entry.date))
+                                        .font(.system(size: 9.5))
+                                        .foregroundStyle(.tertiary)
+                                }
+
+                                Spacer(minLength: 0)
+
+                                Button {
+                                    appState.copyToClipboard(entry.text)
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(SubtleButtonStyle())
+                                .help("In Zwischenablage kopieren")
+                            }
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.primary.opacity(0.03))
+                            )
+                        }
+                    }
+
+                    Button("Verlauf löschen") {
+                        appState.clearTranscriptionHistory()
+                    }
+                    .buttonStyle(SubtleButtonStyle())
+                }
+            }
+
         }
         .padding(16)
     }
+
+    private static let historyDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     private func submitTeamWord() {
         let trimmed = newTeamWord.trimmingCharacters(in: .whitespaces)

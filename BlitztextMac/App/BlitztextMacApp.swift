@@ -51,19 +51,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         appState.onMenuBarStatusChange = { [weak self] status in
             guard let self else { return }
             self.menuBarStatusController.update(to: status)
-
-            // Route to the indicator chosen in settings; hide the others.
-            switch self.appState.appSettings.recordingIndicatorStyle {
-            case .standard:
-                self.statusBubbleController.update(to: .idle)
-                self.cursorIndicatorController.update(to: .idle)
-            case .bubble:
-                self.cursorIndicatorController.update(to: .idle)
-                self.statusBubbleController.update(to: status)
-            case .cursor:
-                self.statusBubbleController.update(to: .idle)
-                self.cursorIndicatorController.update(to: status)
-            }
+            self.dispatchIndicators(for: status)
+        }
+        appState.onRecordingCountdownChange = { [weak self] seconds in
+            self?.statusBubbleController.model.countdown = seconds
+            self?.cursorIndicatorController.model.countdown = seconds
         }
         appState.hotkeyService.start()
 
@@ -136,7 +128,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func handleHotkeyCancel() {
-        appState.activeWorkflow?.stop()
+        // Escape discards -- it must never transcribe or paste.
+        appState.abortCurrentWorkflow()
+    }
+
+    /// Routes status to the indicator chosen in settings; hides the others.
+    private func dispatchIndicators(for status: MenuBarStatus) {
+        switch appState.appSettings.recordingIndicatorStyle {
+        case .standard:
+            statusBubbleController.update(to: .idle)
+            cursorIndicatorController.update(to: .idle)
+        case .bubble:
+            cursorIndicatorController.update(to: .idle)
+            statusBubbleController.update(to: status)
+        case .cursor:
+            statusBubbleController.update(to: .idle)
+            cursorIndicatorController.update(to: status)
+        }
     }
 
     @objc private func togglePopover() {
@@ -171,6 +179,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             default:
                 appState.page = .main
             }
+            // The popover suppressed the floating indicator; if a recording
+            // is still running, bring the indicator back now.
+            dispatchIndicators(for: appState.menuBarStatus)
         }
     }
 }

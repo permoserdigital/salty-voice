@@ -8,6 +8,8 @@ import Observation
 @MainActor
 final class StatusIndicatorModel {
     var status: MenuBarStatus = .idle
+    /// Seconds until the recording limit; non-nil only in the last minute.
+    var countdown: Int?
 }
 
 // MARK: - Base controller (floating, non-activating HUD panel)
@@ -65,17 +67,22 @@ class FloatingIndicatorController {
         return newPanel
     }
 
+    /// Invalidates any in-flight fade-out so its completion cannot hide a
+    /// panel that was re-shown in the meantime.
+    private var hideToken = UUID()
+
     private func show() {
+        hideToken = UUID()
         let panel = ensurePanel()
         reposition(panel)
 
         if !panel.isVisible {
             panel.alphaValue = 0
             panel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.15
-                panel.animator().alphaValue = 1
-            }
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            panel.animator().alphaValue = 1
         }
         didShow()
     }
@@ -83,11 +90,16 @@ class FloatingIndicatorController {
     private func hide() {
         didHide()
         guard let panel, panel.isVisible else { return }
+        let token = UUID()
+        hideToken = token
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             panel.animator().alphaValue = 0
         }, completionHandler: {
-            panel.orderOut(nil)
+            Task { @MainActor [weak self] in
+                guard let self, self.hideToken == token else { return }
+                self.panel?.orderOut(nil)
+            }
         })
     }
 }
@@ -220,9 +232,19 @@ struct StatusIndicatorContent: View {
     var body: some View {
         switch model.status {
         case .recording:
-            HStack(spacing: 5) {
-                PulsingDot(color: .red)
-                WaveBars()
+            if let seconds = model.countdown {
+                // Last minute before the recording limit: show a countdown.
+                HStack(spacing: 5) {
+                    PulsingDot(color: .red)
+                    Text("\(seconds / 60):" + String(format: "%02d", seconds % 60))
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white)
+                }
+            } else {
+                HStack(spacing: 5) {
+                    PulsingDot(color: .red)
+                    WaveBars()
+                }
             }
         case .processing:
             ProcessingDots()

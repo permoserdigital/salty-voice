@@ -47,7 +47,7 @@ final class HotkeyService {
     // Control-only hotkey state (hold to talk, double tap = hands-free)
     private var ctrlPressedAt: Date?
     private var ctrlContaminated = false    // another key/click was used while Ctrl was down
-    private var ctrlPressConsumed = false   // this press started/stopped hands-free; ignore as tap
+    private var pendingHandsFreeStart = false  // second tap seen; start on clean release
     private var lastCtrlTapAt: Date?
     private var ctrlHoldTask: Task<Void, Never>?
     private var handsFreeActive = false
@@ -118,6 +118,12 @@ final class HotkeyService {
             ctrlHoldTask?.cancel()
         }
 
+        // While hands-free records, fn combos must not start a second
+        // workflow on top of it.
+        if handsFreeActive, flags.contains(.function) {
+            return
+        }
+
         // fn + Shift + Control -> local transcription
         if flags == [.function, .shift, .control] {
             if activeCombo == nil {
@@ -174,6 +180,8 @@ final class HotkeyService {
     private func handleEscape() {
         activeCombo = nil
         handsFreeActive = false
+        pendingHandsFreeStart = false
+        lastCtrlTapAt = nil
         ctrlHoldTask?.cancel()
         onHotkeyEvent?(.cancel)
     }
@@ -186,25 +194,17 @@ final class HotkeyService {
 
         ctrlPressedAt = Date()
         ctrlContaminated = false
-        ctrlPressConsumed = false
 
-        // A Ctrl tap while hands-free is recording stops and transcribes it
-        if handsFreeActive {
-            handsFreeActive = false
-            ctrlPressConsumed = true
-            Self.logger.info("ctrl tap -> hands-free stop")
-            onHotkeyEvent?(.up(.transcription))
-            return
-        }
+        // While hands-free records, a Ctrl press only ARMS the stop.
+        // The decision falls on release, so Ctrl+C during a hands-free
+        // recording copies text without killing the recording.
+        if handsFreeActive { return }
 
-        // Double tap -> start hands-free recording
+        // Second tap within the window ARMS hands-free; it only starts on a
+        // clean release, so the Ctrl of a Ctrl+shortcut never triggers it.
         if let lastTap = lastCtrlTapAt,
            Date().timeIntervalSince(lastTap) < Self.ctrlDoubleTapWindow {
-            lastCtrlTapAt = nil
-            ctrlPressConsumed = true
-            handsFreeActive = true
-            Self.logger.info("ctrl double tap -> hands-free start")
-            onHotkeyEvent?(.down(.transcription))
+            pendingHandsFreeStart = true
             return
         }
 
@@ -216,6 +216,7 @@ final class HotkeyService {
             guard let self, !Task.isCancelled else { return }
             guard self.ctrlPressedAt != nil,
                   !self.ctrlContaminated,
+                  !self.pendingHandsFreeStart,
                   self.activeCombo == nil,
                   !self.handsFreeActive else { return }
             Self.logger.info("ctrl hold -> transcription")
@@ -227,15 +228,37 @@ final class HotkeyService {
     private func handleCtrlReleasedIfNeeded() {
         guard let pressedAt = ctrlPressedAt else { return }
         ctrlHoldTask?.cancel()
+        ctrlPressedAt = nil
 
-        // Short, clean press counts as a tap (candidate for double tap)
         let duration = Date().timeIntervalSince(pressedAt)
-        if !ctrlContaminated, !ctrlPressConsumed, duration < Self.ctrlHoldStartDelay {
-            lastCtrlTapAt = Date()
+        let cleanTap = !ctrlContaminated && duration < Self.ctrlHoldStartDelay
+
+        // Clean tap while hands-free records -> stop and transcribe.
+        if handsFreeActive {
+            if cleanTap {
+                handsFreeActive = false
+                Self.logger.info("ctrl tap -> hands-free stop")
+                onHotkeyEvent?(.up(.transcription))
+            }
+            return
         }
 
-        ctrlPressedAt = nil
-        ctrlPressConsumed = false
+        // Armed double tap -> start hands-free only on a clean release.
+        if pendingHandsFreeStart {
+            pendingHandsFreeStart = false
+            lastCtrlTapAt = nil
+            if cleanTap {
+                handsFreeActive = true
+                Self.logger.info("ctrl double tap -> hands-free start")
+                onHotkeyEvent?(.down(.transcription))
+            }
+            return
+        }
+
+        // Clean single tap becomes a double-tap candidate.
+        if cleanTap {
+            lastCtrlTapAt = Date()
+        }
         // Note: if hold-to-talk was running, activeCombo is set and the
         // generic release branch in handleFlags fires the .up event.
     }

@@ -133,15 +133,17 @@ enum BlitztextInstallLocationService {
 
         try ensureDirectoryExists(at: destinationDirectoryURL)
 
+        // Check writability BEFORE deleting the existing install -- otherwise
+        // a read-only /Applications would leave the user with no app at all.
+        guard FileManager.default.isWritableFile(atPath: destinationDirectoryURL.path) else {
+            throw MoveError.destinationNotWritable(destinationDirectoryURL)
+        }
+
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             guard replacingExisting else {
                 throw MoveError.destinationExists(destinationURL)
             }
             try FileManager.default.removeItem(at: destinationURL)
-        }
-
-        guard FileManager.default.isWritableFile(atPath: destinationDirectoryURL.path) else {
-            throw MoveError.destinationNotWritable(destinationDirectoryURL)
         }
 
         do {

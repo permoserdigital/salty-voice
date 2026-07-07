@@ -12,7 +12,29 @@ enum TranscriptionQualityService {
     }
 
     static func cleanedTranscript(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
+        strippedNonSpeechAnnotations(text).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whisper sometimes inserts stage directions for pauses, e.g.
+    /// "(Pause)", "(Schallender Beifall)", "[Musik]". They were never spoken,
+    /// so they get removed. Only brackets containing known non-speech words
+    /// are touched -- dictated bracket content stays intact.
+    private static let nonSpeechAnnotationRegex = try! NSRegularExpression(
+        pattern: "[\\(\\[][^\\)\\]]{0,60}?(pause|applaus|beifall|musik|lach|räusper|husten|seufz|atme|geräusch|klatsch|stille|schweigen|unverständlich|gelächter|jubel)[^\\)\\]]{0,60}?[\\)\\]]",
+        options: [.caseInsensitive]
+    )
+
+    static func strippedNonSpeechAnnotations(_ text: String) -> String {
+        let nsText = text as NSString
+        var result = nonSpeechAnnotationRegex.stringByReplacingMatches(
+            in: text,
+            range: NSRange(location: 0, length: nsText.length),
+            withTemplate: ""
+        )
+        while result.contains("  ") {
+            result = result.replacingOccurrences(of: "  ", with: " ")
+        }
+        return result
     }
 
     /// Replaces spoken variants of known terms with their canonical spelling.
@@ -27,8 +49,13 @@ enum TranscriptionQualityService {
         // Map "normalized key" (lowercased, no spaces) -> canonical spelling.
         var termMap: [String: String] = [:]
         for term in canonicalTerms {
-            let key = term.lowercased().replacingOccurrences(of: " ", with: "")
-            if termMap[key] == nil { termMap[key] = term }
+            // Normalize away everything non-alphanumeric so "salty-brands"
+            // and "Salty Brands" both map to the same key.
+            let key = term
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .joined()
+                .lowercased()
+            if !key.isEmpty, termMap[key] == nil { termMap[key] = term }
         }
         let maxTermWordCount = canonicalTerms
             .map { $0.split(separator: " ").count }
@@ -58,7 +85,10 @@ enum TranscriptionQualityService {
                 let trimmedWords = words.map {
                     $0.trimmingCharacters(in: edgePunctuation)
                 }
-                let key = trimmedWords.joined().lowercased()
+                let key = trimmedWords.joined()
+                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                    .joined()
+                    .lowercased()
                 guard !key.isEmpty, let canonical = termMap[key] else { continue }
 
                 // Preserve punctuation around the matched words.

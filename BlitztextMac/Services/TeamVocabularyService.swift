@@ -16,6 +16,7 @@ enum TeamVocabularyService {
     enum TeamVocabularyError: LocalizedError {
         case invalidURL
         case unauthorized
+        case endpointMissing
         case serverError(Int)
 
         var errorDescription: String? {
@@ -24,6 +25,8 @@ enum TeamVocabularyService {
                 return "Die Team-Server-URL ist ungültig."
             case .unauthorized:
                 return "Team-Code wurde vom Server abgelehnt."
+            case .endpointMissing:
+                return "Team-Endpunkt nicht gefunden. Server-URL prüfen."
             case .serverError(let status):
                 return "Team-Server antwortete mit Status \(status)."
             }
@@ -34,7 +37,10 @@ enum TeamVocabularyService {
         var base = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") { base.removeLast() }
         guard !base.isEmpty else { throw TeamVocabularyError.invalidURL }
-        if !base.lowercased().hasPrefix("http") {
+        // Always https: audio and text must never travel in cleartext.
+        if base.lowercased().hasPrefix("http://") {
+            base = "https://" + base.dropFirst("http://".count)
+        } else if !base.lowercased().hasPrefix("https://") {
             base = "https://" + base
         }
         guard let url = URL(string: base + path) else {
@@ -52,8 +58,10 @@ enum TeamVocabularyService {
         switch http.statusCode {
         case 200...299:
             return
-        case 401, 403, 404:
+        case 401, 403:
             throw TeamVocabularyError.unauthorized
+        case 404:
+            throw TeamVocabularyError.endpointMissing
         default:
             throw TeamVocabularyError.serverError(http.statusCode)
         }

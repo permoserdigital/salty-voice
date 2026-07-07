@@ -22,6 +22,8 @@ final class AppState {
         didSet {
             guard oldValue != menuBarStatus else { return }
             onMenuBarStatusChange?(menuBarStatus)
+            playTransitionSound(from: oldValue, to: menuBarStatus)
+            updateRecordingLimit(for: menuBarStatus)
         }
     }
     var accessibilityPermissionGranted = false
@@ -30,6 +32,9 @@ final class AppState {
     var localModelDownloadErrorText: String?
     var onMenuBarStatusChange: ((MenuBarStatus) -> Void)?
     private var activeLaunchSource: WorkflowLaunchSource = .manual
+    /// Incremented on every workflow start/replacement; late callbacks from
+    /// older workflows are ignored by comparing against this.
+    private var workflowGeneration = 0
     private var activePasteTarget: PasteTarget?
     private var lastPopoverPasteTarget: PasteTarget?
     private var menuBarStatusResetTask: Task<Void, Never>?
@@ -87,17 +92,117 @@ final class AppState {
         autoSelectFastLocalModelIfNeeded()
         prewarmLocalTranscriptionIfNeeded()
         refreshTeamWords()
-        checkForUpdate()
+        transcriptionHistory = TranscriptionHistoryService.load()
+        SoundFeedbackService.isEnabled = { [weak self] in
+            self?.appSettings.soundFeedbackEnabled ?? true
+        }
+        startUpdateChecks()
     }
 
     // MARK: - Update Check
 
     var availableUpdateVersion: String?
+    private var dismissedUpdateVersion: String?
+    private var updateCheckTimer: Timer?
+
+    func dismissUpdateHint() {
+        dismissedUpdateVersion = availableUpdateVersion
+        availableUpdateVersion = nil
+    }
+
+    private func startUpdateChecks() {
+        checkForUpdate()
+        // Menu bar apps run for weeks; re-check twice a day.
+        updateCheckTimer = Timer.scheduledTimer(withTimeInterval: 12 * 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.checkForUpdate()
+            }
+        }
+    }
 
     private func checkForUpdate() {
         Task { @MainActor [weak self] in
-            self?.availableUpdateVersion = await UpdateCheckService.checkForUpdate()
+            guard let version = await UpdateCheckService.checkForUpdate() else { return }
+            guard version != self?.dismissedUpdateVersion else { return }
+            self?.availableUpdateVersion = version
         }
+    }
+
+    // MARK: - Transcription History
+
+    var transcriptionHistory: [TranscriptionHistoryEntry] = []
+
+    func clearTranscriptionHistory() {
+        TranscriptionHistoryService.clear()
+        transcriptionHistory = []
+    }
+
+    // MARK: - Sounds & Recording Limit
+
+    static let maxRecordingDuration: TimeInterval = 300  // 5 minutes
+    private static let countdownWindow: TimeInterval = 60
+
+    var onRecordingCountdownChange: ((Int?) -> Void)?
+    private var recordingLimitTask: Task<Void, Never>?
+
+    private func playTransitionSound(from oldStatus: MenuBarStatus, to newStatus: MenuBarStatus) {
+        switch newStatus {
+        case .recording:
+            SoundFeedbackService.play(.recordingStarted)
+        case .processing:
+            if case .recording = oldStatus {
+                SoundFeedbackService.play(.recordingStopped)
+            }
+        case .success:
+            SoundFeedbackService.play(.success)
+        case .error:
+            SoundFeedbackService.play(.error)
+        case .idle:
+            break
+        }
+    }
+
+    private func updateRecordingLimit(for status: MenuBarStatus) {
+        if case .recording = status {
+            startRecordingLimitCountdown()
+        } else {
+            stopRecordingLimitCountdown()
+        }
+    }
+
+    private func startRecordingLimitCountdown() {
+        recordingLimitTask?.cancel()
+        let startedAt = Date()
+        var hasWarned = false
+
+        recordingLimitTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+
+                let remaining = Self.maxRecordingDuration - Date().timeIntervalSince(startedAt)
+
+                if remaining <= Self.countdownWindow {
+                    if !hasWarned {
+                        hasWarned = true
+                        SoundFeedbackService.play(.limitWarning)
+                    }
+                    self.onRecordingCountdownChange?(max(0, Int(remaining.rounded())))
+                }
+
+                if remaining <= 0 {
+                    // Hard limit reached: stop and transcribe what we have.
+                    self.activeWorkflow?.stop()
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopRecordingLimitCountdown() {
+        recordingLimitTask?.cancel()
+        recordingLimitTask = nil
+        onRecordingCountdownChange?(nil)
     }
 
     // MARK: - Team Vocabulary
@@ -259,7 +364,10 @@ final class AppState {
             return
         }
 
-        activeWorkflow?.stop()
+        // Discard (never transcribe) any workflow we are replacing, and bump
+        // the generation so its late callbacks are ignored.
+        workflowGeneration += 1
+        activeWorkflow?.reset()
         menuBarStatusResetTask?.cancel()
         workflowCleanupTask?.cancel()
         activeLaunchSource = source
@@ -342,7 +450,24 @@ final class AppState {
         activeWorkflow?.stop()
     }
 
+    /// Escape: abort and DISCARD the current recording/processing --
+    /// nothing gets transcribed or pasted.
+    func abortCurrentWorkflow() {
+        guard activeWorkflow != nil else { return }
+        workflowGeneration += 1
+        activeWorkflow?.reset()
+        activeWorkflow = nil
+        activePasteTarget = nil
+        activeLaunchSource = .manual
+        workflowCleanupTask?.cancel()
+        menuBarStatusResetTask?.cancel()
+        menuBarStatus = .idle
+        if !isPopoverShown { page = .main }
+        SoundFeedbackService.play(.cancelled)
+    }
+
     func resetCurrentWorkflow() {
+        workflowGeneration += 1
         activeWorkflow?.reset()
         activeWorkflow = nil
         activePasteTarget = nil
@@ -476,7 +601,20 @@ final class AppState {
         return AppSupportPaths.settingsURL
     }()
 
+    private var settingsSaveTask: Task<Void, Never>?
+
+    /// Debounced: bound TextFields mutate settings on every keystroke;
+    /// writing once after a short pause avoids per-key disk writes.
     private func saveSettings() {
+        settingsSaveTask?.cancel()
+        settingsSaveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let self, !Task.isCancelled else { return }
+            self.writeSettingsNow()
+        }
+    }
+
+    private func writeSettingsNow() {
         let container = SettingsContainer(
             app: appSettings,
             transcription: transcriptionSettings,
@@ -485,7 +623,8 @@ final class AppState {
             emojiText: emojiTextSettings
         )
         if let data = try? JSONEncoder().encode(container) {
-            try? data.write(to: Self.settingsURL)
+            // Atomic: TeamVocabularyService reads this file concurrently.
+            try? data.write(to: Self.settingsURL, options: [.atomic])
         }
     }
 
@@ -542,6 +681,8 @@ final class AppState {
         appSettings.hasAutoSelectedFastLocalModel = true
     }
 
+    private var prewarmedLocalModelName: String?
+
     private func prewarmLocalTranscriptionIfNeeded() {
         guard appSettings.secureLocalModeEnabled,
               LocalTranscriptionService.isModelInstalled(resolvedLocalModelName) else {
@@ -549,12 +690,16 @@ final class AppState {
         }
 
         let modelName = resolvedLocalModelName
+        // Settings mutate on every keystroke; only prewarm once per model.
+        guard modelName != prewarmedLocalModelName else { return }
+        prewarmedLocalModelName = modelName
         Task.detached(priority: .utility) {
             try? await LocalTranscriptionService.shared.prepare(modelName: modelName)
         }
     }
 
-    private func handleWorkflowOutput(_ text: String) {
+    private func handleWorkflowOutput(_ text: String, workflowType: WorkflowType) {
+        transcriptionHistory = TranscriptionHistoryService.append(text: text, workflowType: workflowType)
         pasteAtCursor(text, target: activePasteTarget)
         if activeLaunchSource == .hotkeyBackground {
             page = .main
@@ -563,11 +708,17 @@ final class AppState {
     }
 
     private func configureWorkflowHandlers<T: Workflow>(_ workflow: T) {
-        workflow.onOutput = { [weak self] text in
-            self?.handleWorkflowOutput(text)
+        let generation = workflowGeneration
+        workflow.onOutput = { [weak self, weak workflow] text in
+            guard let self, let workflow,
+                  generation == self.workflowGeneration,
+                  workflow === self.activeWorkflow else { return }
+            self.handleWorkflowOutput(text, workflowType: workflow.type)
         }
         workflow.onPhaseChange = { [weak self, weak workflow] phase in
-            guard let self, let workflow else { return }
+            guard let self, let workflow,
+                  generation == self.workflowGeneration,
+                  workflow === self.activeWorkflow else { return }
             self.handleWorkflowPhaseChange(phase, workflow: workflow)
         }
     }
@@ -623,6 +774,7 @@ final class AppState {
     }
 
     private func scheduleMenuBarStatusReset(after delay: TimeInterval) {
+        menuBarStatusResetTask?.cancel()
         menuBarStatusResetTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self else { return }
@@ -655,10 +807,12 @@ final class AppState {
 
             target.application.activate(options: [])
         } else {
+            notifyPasteFallback()
             return
         }
 
         guard attemptsRemaining > 0 else {
+            notifyPasteFallback()
             return
         }
 
@@ -678,6 +832,13 @@ final class AppState {
                 attemptsRemaining: attemptsRemaining - 1
             )
         }
+    }
+
+    /// Paste could not be delivered (target app gone or never captured).
+    /// The text stays on the clipboard; flash the icon so the user notices.
+    private func notifyPasteFallback() {
+        menuBarStatus = .error(activeWorkflow?.type)
+        scheduleMenuBarStatusReset(after: 1.6)
     }
 
     private func performPaste() {

@@ -294,6 +294,15 @@ struct MenuBarView: View {
             }
             .font(.system(size: 10.5, weight: .medium))
             .buttonStyle(SubtleButtonStyle())
+
+            Button {
+                appState.dismissUpdateHint()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(SubtleButtonStyle())
         }
         .padding(10)
         .background(

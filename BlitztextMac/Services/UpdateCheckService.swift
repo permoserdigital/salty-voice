@@ -40,6 +40,17 @@ enum UpdateCheckService {
     }
 
     static func isVersion(_ candidate: String, newerThan current: String) -> Bool {
-        candidate.compare(current, options: .numeric) == .orderedDescending
+        // Component-wise numeric compare so "1" == "1.0" and "1.10" > "1.9".
+        func components(_ version: String) -> [Int] {
+            version.split(whereSeparator: { !$0.isNumber }).map { Int($0) ?? 0 }
+        }
+        let lhs = components(candidate)
+        let rhs = components(current)
+        for index in 0..<max(lhs.count, rhs.count) {
+            let a = index < lhs.count ? lhs[index] : 0
+            let b = index < rhs.count ? rhs[index] : 0
+            if a != b { return a > b }
+        }
+        return false
     }
 }

@@ -824,6 +824,14 @@ struct CustomizeSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(text: "Eigennamen")
 
+                Toggle("Aus Korrekturen lernen", isOn: $appState.appSettings.correctionLearningEnabled)
+                    .toggleStyle(.switch)
+
+                Text("Wenn du ein eingefügtes Wort direkt danach von Hand korrigierst, merkt sich SALTY Voice die richtige Schreibweise automatisch als Eigenname.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 // Term chips
                 if !appState.textImprovementSettings.customTerms.isEmpty {
                     FlowLayout(spacing: 5) {

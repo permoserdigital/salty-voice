@@ -151,6 +151,7 @@ struct AppSettings: Codable {
     var teamCode: String = ""
     var cachedTeamWords: [String] = []
     var soundFeedbackEnabled: Bool = true
+    var correctionLearningEnabled: Bool = true
 
     init(
         hotkeyMode: HotkeyMode = .hold,
@@ -162,7 +163,8 @@ struct AppSettings: Codable {
         teamServerURL: String = "",
         teamCode: String = "",
         cachedTeamWords: [String] = [],
-        soundFeedbackEnabled: Bool = true
+        soundFeedbackEnabled: Bool = true,
+        correctionLearningEnabled: Bool = true
     ) {
         self.hotkeyMode = hotkeyMode
         self.hasSeenOnboarding = hasSeenOnboarding
@@ -174,6 +176,7 @@ struct AppSettings: Codable {
         self.teamCode = teamCode
         self.cachedTeamWords = cachedTeamWords
         self.soundFeedbackEnabled = soundFeedbackEnabled
+        self.correctionLearningEnabled = correctionLearningEnabled
     }
 
     enum CodingKeys: String, CodingKey {
@@ -187,6 +190,7 @@ struct AppSettings: Codable {
         case teamCode
         case cachedTeamWords
         case soundFeedbackEnabled
+        case correctionLearningEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -210,6 +214,7 @@ struct AppSettings: Codable {
         teamCode = try container.decodeIfPresent(String.self, forKey: .teamCode) ?? ""
         cachedTeamWords = try container.decodeIfPresent([String].self, forKey: .cachedTeamWords) ?? []
         soundFeedbackEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundFeedbackEnabled) ?? true
+        correctionLearningEnabled = try container.decodeIfPresent(Bool.self, forKey: .correctionLearningEnabled) ?? true
     }
 }
 

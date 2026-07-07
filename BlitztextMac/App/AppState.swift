@@ -547,6 +547,38 @@ final class AppState {
             target: target,
             attemptsRemaining: Self.pasteRetryInitialAttempts
         )
+        scheduleCorrectionLearning(for: text, target: target)
+    }
+
+    // MARK: - Correction Learning
+
+    private var correctionLearningTask: Task<Void, Never>?
+
+    /// A few seconds after pasting, check whether the user manually fixed a
+    /// word and learn the corrected spelling as a personal term.
+    private func scheduleCorrectionLearning(for pastedText: String, target: PasteTarget?) {
+        guard appSettings.correctionLearningEnabled, let target else { return }
+
+        correctionLearningTask?.cancel()
+        correctionLearningTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(CorrectionLearningService.watchDelay))
+            guard let self, !Task.isCancelled else { return }
+            guard self.appSettings.correctionLearningEnabled else { return }
+
+            // Only if the user is still in the app we pasted into.
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    == target.processIdentifier else { return }
+            guard let fieldText = CorrectionLearningService.focusedElementText() else { return }
+
+            let learned = CorrectionLearningService.learnedCorrections(
+                pastedText: pastedText,
+                currentText: fieldText,
+                knownTerms: self.combinedCustomTerms
+            )
+            for word in learned where !self.textImprovementSettings.customTerms.contains(word) {
+                self.textImprovementSettings.customTerms.append(word)
+            }
+        }
     }
 
     private func writeSensitiveTextToPasteboard(_ text: String) {

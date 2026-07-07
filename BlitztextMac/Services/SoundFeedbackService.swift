@@ -18,23 +18,28 @@ enum SoundFeedbackService {
     static func play(_ event: SoundFeedbackEvent) {
         guard isEnabled() else { return }
 
-        let name: String
-        let volume: Float
         switch event {
         case .recordingStarted:
-            (name, volume) = ("Pop", 0.18)
+            playSound(named: "Pop", volume: 0.18)
         case .recordingStopped:
-            (name, volume) = ("Tink", 0.15)
+            playSound(named: "Tink", volume: 0.15)
         case .success:
-            (name, volume) = ("Glass", 0.2)
+            // Same clean pop as the start sound, twice in quick
+            // succession -- reads as "done" without a new timbre.
+            playSound(named: "Pop", volume: 0.18)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) {
+                playSound(named: "Pop", volume: 0.24)
+            }
         case .cancelled:
-            (name, volume) = ("Bottle", 0.18)
+            playSound(named: "Bottle", volume: 0.18)
         case .error:
-            (name, volume) = ("Basso", 0.2)
+            playSound(named: "Basso", volume: 0.2)
         case .limitWarning:
-            (name, volume) = ("Ping", 0.3)
+            playSound(named: "Ping", volume: 0.3)
         }
+    }
 
+    private static func playSound(named name: String, volume: Float) {
         guard let sound = NSSound(named: name) else { return }
         sound.volume = volume
         sound.play()

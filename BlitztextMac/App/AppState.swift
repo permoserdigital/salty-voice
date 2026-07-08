@@ -62,6 +62,9 @@ final class AppState {
 
     // Hotkeys
     let hotkeyService = HotkeyService()
+    /// Escape-to-cancel, claimed only while a recording runs (Carbon hotkey,
+    /// needs no extra permission -- unlike global keyDown monitors).
+    private let escapeCancelHotkey = EscapeCancelHotkey()
 
     // Computed
     var isConfigured: Bool {
@@ -95,6 +98,9 @@ final class AppState {
         transcriptionHistory = TranscriptionHistoryService.load()
         SoundFeedbackService.isEnabled = { [weak self] in
             self?.appSettings.soundFeedbackEnabled ?? true
+        }
+        escapeCancelHotkey.onEscape = { [weak self] in
+            self?.abortCurrentWorkflow()
         }
         startUpdateChecks()
     }
@@ -165,8 +171,10 @@ final class AppState {
     private func updateRecordingLimit(for status: MenuBarStatus) {
         if case .recording = status {
             startRecordingLimitCountdown()
+            escapeCancelHotkey.register()
         } else {
             stopRecordingLimitCountdown()
+            escapeCancelHotkey.unregister()
         }
     }
 
@@ -453,6 +461,9 @@ final class AppState {
     /// Escape: abort and DISCARD the current recording/processing --
     /// nothing gets transcribed or pasted.
     func abortCurrentWorkflow() {
+        // Always clear gesture tracking, even if no workflow is active --
+        // otherwise an aborted hands-free session leaves phantom state.
+        hotkeyService.resetGestureState()
         guard activeWorkflow != nil else { return }
         workflowGeneration += 1
         activeWorkflow?.reset()

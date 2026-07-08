@@ -178,12 +178,20 @@ final class HotkeyService {
     }
 
     private func handleEscape() {
+        resetGestureState()
+        onHotkeyEvent?(.cancel)
+    }
+
+    /// Clears all in-flight gesture tracking (hold, double tap, hands-free).
+    /// Called on cancel so an aborted recording never leaves phantom state.
+    func resetGestureState() {
         activeCombo = nil
         handsFreeActive = false
         pendingHandsFreeStart = false
         lastCtrlTapAt = nil
+        ctrlPressedAt = nil
+        ctrlContaminated = false
         ctrlHoldTask?.cancel()
-        onHotkeyEvent?(.cancel)
     }
 
     // MARK: - Control-only hotkey (hold to talk + double-tap hands-free)
